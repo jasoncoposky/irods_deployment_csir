@@ -22,6 +22,7 @@ install(
   FILES
   ${CMAKE_SOURCE_DIR}/default_resource_policy.re
   ${CMAKE_SOURCE_DIR}/project_collection_lifetime.re
+  ${CMAKE_SOURCE_DIR}/prevent_disabled_users.re
   DESTINATION etc/irods
   )
 
