@@ -21,7 +21,7 @@ endif()
 install(
   FILES
   ${CMAKE_SOURCE_DIR}/default_resource_policy.re
-  ${CMAKE_SOURCE_DIR}/irods_policy_collection_lifetime.re
+  ${CMAKE_SOURCE_DIR}/project_collection_lifetime.re
   DESTINATION etc/irods
   )
 
