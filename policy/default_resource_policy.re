@@ -1,5 +1,5 @@
 
-DEFAULT_RESOURCE_NAME { "PTA_Prov0" }
+DEFAULT_RESOURCE_NAME { "dirisa_root" }
 
 acSetRescSchemeForCreate {
     msiSetDefaultResc(DEFAULT_RESOURCE_NAME,"preferred");
