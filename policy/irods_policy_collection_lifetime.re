@@ -121,7 +121,7 @@ pep_api_data_obj_put_post(*INSTANCE_NAME, *COMM, *DATAOBJINP, *BBUFF, *PORTAL_OP
             msiset_avu("-d", *logical_path, *attr, *project_collection, *lifetime)
         }
     }
-
+    RULE_ENGINE_CONTINUE
 } # pep_api_data_obj_put_post
 
 # prevent reads, writes, and moves to the violating project root
@@ -140,17 +140,21 @@ prevent_operation_on_violating_project_collection(*CTX) {
 
 pep_resource_open_pre(*INSTANCE, *CTX, *OUT) {
     prevent_operation_on_violating_project_collection(*CTX)
+    RULE_ENGINE_CONTINUE
 } # pep_resource_open_pre
 
 pep_resource_create_pre(*INSTANCE, *CTX, *OUT) {
     prevent_operation_on_violating_project_collection(*CTX)
+    RULE_ENGINE_CONTINUE
 } # pep_resource_create_pre
 
 pep_resource_unlink_pre(*INSTANCE, *CTX, *OUT) {
     prevent_operation_on_violating_project_collection(*CTX)
+    RULE_ENGINE_CONTINUE
 } # pep_resource_unlink_pre
 
 pep_resource_rename_pre(*INSTANCE, *CTX, *OUT, *FILENAME) {
     prevent_operation_on_violating_project_collection(*CTX)
+    RULE_ENGINE_CONTINUE
 } # pep_resource_rename_pre
 
