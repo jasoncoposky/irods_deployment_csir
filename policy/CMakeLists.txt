@@ -20,11 +20,17 @@ endif()
 
 install(
   FILES
+  ${CMAKE_SOURCE_DIR}/default_resource_policy.re
   ${CMAKE_SOURCE_DIR}/irods_policy_collection_lifetime.re
-  ${CMAKE_SOURCE_DIR}/collection_violation_report.r
   DESTINATION etc/irods
   )
 
+install(
+  FILES
+  ${CMAKE_SOURCE_DIR}/project_collection_violation_report.r
+  ${CMAKE_SOURCE_DIR}/project_collection_creation.r
+  DESTINATION var/lib/irods
+  )
 set(CPACK_PACKAGE_FILE_NAME "irods-deployment-csir-policy${IRODS_PACKAGE_FILE_NAME_SUFFIX}")
 set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
 set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY OFF)

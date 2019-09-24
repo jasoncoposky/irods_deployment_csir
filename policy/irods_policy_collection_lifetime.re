@@ -20,6 +20,9 @@ RULE_ENGINE_CONTINUE { 5000000 }
 # Error code if input is incorrect
 SYS_INVALID_INPUT_PARAM { -130000 }
 
+# admin privilege value
+LOCAL_PRIV_USER_AUTH { 5 }
+
 # metadata attribute driving the policy in units of days, fractions of a day are allowed: e.g. 0.01
 get_lifetime_metadata_attribute(*attr) { *attr = "irods::collection::lifetime" }
 
@@ -120,4 +123,34 @@ pep_api_data_obj_put_post(*INSTANCE_NAME, *COMM, *DATAOBJINP, *BBUFF, *PORTAL_OP
     }
 
 } # pep_api_data_obj_put_post
+
+# prevent reads, writes, and moves to the violating project root
+prevent_operation_on_violating_project_collection(*CTX) {
+    *logical_path = *CTX.logical_path
+    *user_auth_flag = *CTX.user_auth_info_auth_flag
+    get_violating_collection_root(*root)
+
+    *match = (*logical_path like *root++"/*")
+    *priv = (int(*user_auth_flag) < LOCAL_PRIV_USER_AUTH)
+
+    if(*match && *priv) {
+        failmsg(SYS_INVALID_INPUT_PARAM, "Unable to access violating project collections")
+    }
+}
+
+pep_resource_open_pre(*INSTANCE, *CTX, *OUT) {
+    prevent_operation_on_violating_project_collection(*CTX)
+} # pep_resource_open_pre
+
+pep_resource_create_pre(*INSTANCE, *CTX, *OUT) {
+    prevent_operation_on_violating_project_collection(*CTX)
+} # pep_resource_create_pre
+
+pep_resource_unlink_pre(*INSTANCE, *CTX, *OUT) {
+    prevent_operation_on_violating_project_collection(*CTX)
+} # pep_resource_unlink_pre
+
+pep_resource_rename_pre(*INSTANCE, *CTX, *OUT, *FILENAME) {
+    prevent_operation_on_violating_project_collection(*CTX)
+} # pep_resource_rename_pre
 

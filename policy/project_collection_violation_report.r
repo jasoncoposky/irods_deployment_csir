@@ -1,4 +1,4 @@
-collection_violation_report {
+project_collection_violation_report {
      get_lifetime_metadata_attribute(*attr)
      get_participating_collection_root(*root)
 
