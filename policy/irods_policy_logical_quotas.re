@@ -96,6 +96,34 @@ logical_quotas_invalid_object_type_error(*path, *obj_type)
     failmsg(*INVALID_OBJECT_TYPE, "Object is not a collection or data object [path => *path, type => *obj_type]");
 }
 
+get_collection_id(*coll_path) {
+    *id = 0;
+    foreach(*row in SELECT COLL_ID WHERE COLL_NAME = '*coll_path') {
+        *id = *row.COLL_ID
+    }
+
+    *id
+} # get_collection_id
+
+get_collection_owner_user_id(*coll_id) {
+    *user_id = 0
+    foreach(*row in SELECT COLL_ACCESS_USER_ID WHERE COLL_ACCESS_COLL_ID = '*coll_id' and COLL_ACCESS_NAME = 'own') {
+        *user_id = *row.COLL_ACCESS_USER_ID
+    }
+    *user_id
+} # get_collection_owner_user_id
+
+collection_owner_user_name(*coll_path) {
+    *coll_id = get_collection_id(*coll_path)
+    *user_id = get_collection_owner_user_id(*coll_id)
+    *user_name = ""
+    foreach(*row in SELECT USER_NAME WHERE USER_ID = '*user_id') {
+        *user_name = *row.USER_NAME
+    }
+
+    *user_name
+}
+
 # Adds metadata to a collection that helps to enforce an upper limit
 # on the number of objects (collections and data objects) and size (in bytes)
 # a particular collection can hold.
@@ -106,9 +134,11 @@ logical_quotas_invalid_object_type_error(*path, *obj_type)
 # - *max_size_in_bytes: The total number of bytes the collection is allowed to hold.
 logical_quotas_init(*coll_path, *max_number_of_objects, *max_size_in_bytes)
 {
+    *owner_name = collection_owner_user_name(*coll_path)
+    msiproxy_user(*owner_name, *prev_user_name)
+
     *count = 0;
     *size = 0;
-
     foreach (*row in select count(DATA_NAME), sum(DATA_SIZE) where COLL_NAME = "*coll_path" || like "*coll_path/%") {
         *count = int(*row.DATA_NAME);
         *size = int(*row.DATA_SIZE);
@@ -125,6 +155,8 @@ logical_quotas_init(*coll_path, *max_number_of_objects, *max_size_in_bytes)
     *kvp.*csize = "*size";
 
     *ec = errormsg(msiSetKeyValuePairsToObj(*kvp, *coll_path, "-C"), *msg);
+
+    msiproxy_user(*prev_user_name, *dontcare)
 
     logical_quotas_fail_if_error(*ec, "Could not initialize logical quotas policy for path [" ++ *coll_path ++ "]");
 }
