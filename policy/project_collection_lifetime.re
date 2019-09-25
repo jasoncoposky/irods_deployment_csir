@@ -36,16 +36,61 @@ get_participating_collection_root(*root) { *root = "/tempZone/projects" }
 #get_violating_collection_root(*root) { *root = "/dirisa.ac.za/violating_projects/" }
 get_violating_collection_root(*root) { *root = "/tempZone/violating_projects" }
 
-get_collection_lifetime(*collection, *lifetime) {
-    get_error_value(*err_val)
-    get_error_value(*lifetime)
-    get_lifetime_metadata_attribute(*attr)
+###################################################################
+# Policy Implementation for External Invocation
 
-    foreach( *row in SELECT META_COLL_ATTR_VALUE WHERE META_COLL_ATTR_NAME = '*attr' AND COLL_NAME = '*collection') {
-        *lifetime = *row.META_COLL_ATTR_VALUE
-    }
-} # get_collection_lifetime
+# Business logic for project creation - this rule depends on the logical quota rule base
+create_project_collection(*proj_name, *owner, *collab_list, *lifetime, *object_quota, *size_quota) {
+     get_lifetime_metadata_attribute(*attr)
+     get_participating_collection_root(*root)
 
+     # handle error case where *name has a trailing /
+     *proj_name = trimr(*proj_name, '/')
+
+     # build fully qualified project path
+     *coll_name = *root ++ '/' ++ *proj_name
+
+     # create project collection
+     *ec = errorcode(msiCollCreate(*coll_name, 1, *out))
+     if(*ec < 0) {
+         *ec_str = str(*ec)
+         *msg = "Failed to create collection [*coll_name] ec [*ec_str]"
+         writeLine("stdout", *msg)
+         failmsg(*ec, *msg)
+     }
+
+     # set project collection lifetime metadata
+     msiset_avu('-C', *coll_name, *attr, str(*lifetime), '')
+
+     # set project collection logical quota
+     logical_quotas_init(*coll_name, *object_quota, *size_quota)
+
+     # set inherit flag
+     msiSetACL("recursive", "inherit", "", *coll_name)
+
+     # set owner of the project
+     msiSetACL("recursive", "own", *owner, *coll_name)
+
+     # set modify for all collaborators
+     *split_list = split(*collab_list, ",")
+     while(size(*split_list) > 0) {
+         # pull head of list
+         *name = str(hd(*split_list))
+
+         # subset remainder of list
+         *split_list = tl(*split_list)
+
+         # chomp space
+         *name = triml(*name, ' ')
+         *name = trimr(*name, ' ')
+
+         # set write permission for collaborator
+         msiSetACL("recursive", "write", *name, *coll_name)
+     }
+} # create_project_collection
+
+# Query for all collections with the lifetime attribute.  Determine if any lifetimes
+# have grown beyond their contstraint
 collection_violates_lifetime_constraint(*coll_name, *lifetime, *violation_time) {
     get_error_value(*err_val)
     get_error_value(*create_time)
@@ -84,6 +129,18 @@ collection_violates_lifetime_constraint(*coll_name, *lifetime, *violation_time) 
 
 } # collection_violates_lifetime_constraint
 
+###################################################################
+# Helper Functions
+get_collection_lifetime(*collection, *lifetime) {
+    get_error_value(*err_val)
+    get_error_value(*lifetime)
+    get_lifetime_metadata_attribute(*attr)
+
+    foreach( *row in SELECT META_COLL_ATTR_VALUE WHERE META_COLL_ATTR_NAME = '*attr' AND COLL_NAME = '*collection') {
+        *lifetime = *row.META_COLL_ATTR_VALUE
+    }
+} # get_collection_lifetime
+
 get_project_collection_from_path(*logical_path, *project_collection) {
     get_participating_collection_root(*root_coll)
     get_error_value(*project_collection)
@@ -105,6 +162,9 @@ get_project_collection_from_path(*logical_path, *project_collection) {
     } # while
 
 } # get_project_collection_from_path
+
+###################################################################
+# Policy Implemetation
 
 # metadata inheritance
 pep_api_data_obj_put_post(*INSTANCE_NAME, *COMM, *DATAOBJINP, *BBUFF, *PORTAL_OPR_OUT) {
