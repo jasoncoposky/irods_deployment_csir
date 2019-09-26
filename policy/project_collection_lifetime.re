@@ -41,7 +41,7 @@ project_collection_violating_root{ "/tempZone/violating_projects" }
 
 # Business logic for project creation - this rule depends on the logical quota rule base
 create_project_collection(*proj_name, *owner, *collab_list, *lifetime, *object_quota, *size_quota) {
-     project_collection_lifetime_attribute(*attr)
+     *attr = project_collection_lifetime_attribute()
      *root = project_collection_root()
 
      # handle error case where *name has a trailing /
