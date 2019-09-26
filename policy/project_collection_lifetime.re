@@ -28,13 +28,13 @@ project_collection_lifetime_attribute { "irods::collection::lifetime" }
 
 # defined root collection to trigger policy - removes catalog load
 # NOTE: assumption is made that the collection does NOT end in a /
-#project_collection_root { "/dirisa.ac.za/projects/" }
-project_collection_root { "/tempZone/projects" }
+project_collection_root { "/dirisa.ac.za/projects/" }
+#project_collection_root { "/tempZone/projects" }
 
 # defined violating root collection to trigger read/write prevention
 # NOTE: assumption is made that the collection does NOT end in a /
-#project_collection_violating_root { "/dirisa.ac.za/violating_projects/" }
-project_collection_violating_root{ "/tempZone/violating_projects" }
+project_collection_violating_root { "/dirisa.ac.za/violating_projects/" }
+#project_collection_violating_root{ "/tempZone/violating_projects" }
 
 ###################################################################
 # Policy Implementation for External Invocation

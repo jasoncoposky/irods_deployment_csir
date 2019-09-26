@@ -161,6 +161,50 @@ logical_quotas_init(*coll_path, *max_number_of_objects, *max_size_in_bytes)
     logical_quotas_fail_if_error(*ec, "Could not initialize logical quotas policy for path [" ++ *coll_path ++ "]");
 }
 
+# Removes the metadata from a collection for the logical quota policy
+#
+# Parameters:
+# - *coll_path: The collection that tracks the number of objects and size.
+logical_quotas_remove(*coll_path)
+{
+    *owner_name = collection_owner_user_name(*coll_path)
+    msiproxy_user(*owner_name, *prev_user_name)
+
+    # capture attributes
+    *mcount = logical_quotas_maximum_object_count_key();
+    *msize = logical_quotas_maximum_data_size_in_bytes_key();
+    *ccount = logical_quotas_current_object_count_key();
+    *csize = logical_quotas_current_data_size_in_bytes_key();
+
+    # capture values
+    foreach(*row in SELECT META_COLL_ATTR_VALUE WHERE COLL_NAME = '*coll_path' AND META_COLL_ATTR_NAME = '*mcount') {
+       *mcount_val = *row.META_COLL_ATTR_VALUE
+    }
+
+    foreach(*row in SELECT META_COLL_ATTR_VALUE WHERE COLL_NAME = '*coll_path' AND META_COLL_ATTR_NAME = '*msize') {
+       *msize_val = *row.META_COLL_ATTR_VALUE
+    }
+
+    foreach(*row in SELECT META_COLL_ATTR_VALUE WHERE COLL_NAME = '*coll_path' AND META_COLL_ATTR_NAME = '*ccount') {
+       *ccount_val = *row.META_COLL_ATTR_VALUE
+    }
+
+    foreach(*row in SELECT META_COLL_ATTR_VALUE WHERE COLL_NAME = '*coll_path' AND META_COLL_ATTR_NAME = '*csize') {
+       *csize_val = *row.META_COLL_ATTR_VALUE
+    }
+
+    *kvp.*mcount = *mcount_val
+    *kvp.*msize = *msize_val
+    *kvp.*ccount = *ccount_val
+    *kvp.*csize = *csize_val
+
+    *ec = errormsg(msiRemoveKeyValuePairsFromObj(*kvp, *coll_path, "-C"), *msg);
+
+    msiproxy_user(*prev_user_name, *dontcare)
+
+    logical_quotas_fail_if_error(*ec, "Could not initialize logical quotas policy for path [" ++ *coll_path ++ "]");
+}
+
 # Returns the parent path of *path. If *path is empty or points to the root
 # collection, an empty string is returned.
 #
