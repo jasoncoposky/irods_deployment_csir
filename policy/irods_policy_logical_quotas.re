@@ -291,15 +291,18 @@ logical_quotas_is_tracking(*coll_path)
 #
 # Parameters:
 # - *path: The canonical path to a data object.
-logical_quotas_data_object_exists(*path)
+# - *size: If an object exists, also return the size
+logical_quotas_data_object_exists(*path, *size)
 {
     *ec = errormsg(msiSplitPath(*path, *coll_name, *data_name), *msg);
     logical_quotas_fail_if_split_path_error(*ec, *path);
 
+    *size  = 0;
     *found = false;
 
-    foreach (*row in select DATA_NAME where COLL_NAME = "*coll_name" and DATA_NAME = "*data_name") {
+    foreach (*row in select DATA_NAME, DATA_SIZE where COLL_NAME = "*coll_name" and DATA_NAME = "*data_name") {
         *found = true;
+        *size = *row.DATA_SIZE;
     }
 
     *found;
@@ -539,29 +542,62 @@ pep_api_data_obj_rename_post(*INSTANCE_NAME, *COMM, *INPUT)
 
 pep_api_data_obj_put_pre(*INSTANCE_NAME, *COMM, *INPUT, *BBUF_INPUT, *OUTPUT)
 {
-    if (!logical_quotas_data_object_exists(*INPUT.obj_path)) {
-        *parent_path = logical_quotas_get_tracked_parent_collection(*INPUT.obj_path);
+    *obj_path = *INPUT.obj_path
+    if (!logical_quotas_data_object_exists(*obj_path, *previous_data_size)) {
+        *parent_path = logical_quotas_get_tracked_parent_collection(*obj_path);
 
         while (*parent_path != "") {
             if (logical_quotas_is_tracking(*parent_path)) {
                 *kvp = logical_quotas_get_tracking_info(*parent_path);
                 logical_quotas_fail_if_max_count_violation(*kvp, 1);
                 logical_quotas_fail_if_max_size_violation(*kvp, int(*INPUT.data_size));
+
+                # store state for post-pep
+                temporaryStorage.*obj_path = *INPUT.data_size
+                temporaryStorage."existed" = "false"
             }
 
             *parent_path = logical_quotas_get_parent_collection(*parent_path);
         }
     }
+    else {
+        # handle forced overwrites
+        *parent_path = logical_quotas_get_tracked_parent_collection(*obj_path);
+
+        while (*parent_path != "") {
+            if (logical_quotas_is_tracking(*parent_path)) {
+                *kvp = logical_quotas_get_tracking_info(*parent_path);
+                #*offset = int(*previous_data_size) - int(*INPUT.data_size);
+                *offset =  int(*INPUT.data_size) - int(*previous_data_size);
+                logical_quotas_fail_if_max_size_violation(*kvp, *offset)
+
+                # store state for post-pep
+                temporaryStorage.*obj_path = str(*offset)
+                temporaryStorage."existed" = "true"
+            }
+
+            *parent_path = logical_quotas_get_parent_collection(*parent_path);
+        }
+
+    }
 }
 
 pep_api_data_obj_put_post(*INSTANCE_NAME, *COMM, *INPUT, *BBUF_INPUT, *OUTPUT)
 {
-    *parent_path = logical_quotas_get_tracked_parent_collection(*INPUT.obj_path);
+    *obj_path = *INPUT.obj_path
+    *parent_path = logical_quotas_get_tracked_parent_collection(*obj_path);
 
     while (*parent_path != "") {
         if (logical_quotas_is_tracking(*parent_path)) {
             *kvp = logical_quotas_get_tracking_info(*parent_path);
-            logical_quotas_add_objects_and_size(*kvp, 1, int(*INPUT.data_size));
+
+            *offset = temporaryStorage.*obj_path
+
+            *num_objects = 1
+            if("true" == temporaryStorage."existed") {
+               *num_objects = 0
+            }
+            logical_quotas_add_objects_and_size(*kvp, *num_objects, int(*offset));
             *ec = errormsg(msiSetKeyValuePairsToObj(*kvp, *parent_path, "-C"), *msg);
             logical_quotas_fail_if_set_key_value_pairs_error(*ec, *parent_path);
         }
