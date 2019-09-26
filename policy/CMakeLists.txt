@@ -20,6 +20,7 @@ endif()
 
 install(
   FILES
+  ${CMAKE_SOURCE_DIR}/administrative_metadata_access_control.re
   ${CMAKE_SOURCE_DIR}/post_create_user.re
   ${CMAKE_SOURCE_DIR}/default_resource_policy.re
   ${CMAKE_SOURCE_DIR}/project_collection_lifetime.re

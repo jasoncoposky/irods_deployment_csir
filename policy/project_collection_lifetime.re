@@ -24,25 +24,25 @@ SYS_INVALID_INPUT_PARAM { -130000 }
 LOCAL_PRIV_USER_AUTH { 5 }
 
 # metadata attribute driving the policy in units of days, fractions of a day are allowed: e.g. 0.01
-get_lifetime_metadata_attribute(*attr) { *attr = "irods::collection::lifetime" }
+project_collection_lifetime_attribute { "irods::collection::lifetime" }
 
 # defined root collection to trigger policy - removes catalog load
 # NOTE: assumption is made that the collection does NOT end in a /
-#get_participating_collection_root(*root) { *root = "/dirisa.ac.za/projects/" }
-get_participating_collection_root(*root) { *root = "/tempZone/projects" }
+#project_collection_root { "/dirisa.ac.za/projects/" }
+project_collection_root { "/tempZone/projects" }
 
 # defined violating root collection to trigger read/write prevention
 # NOTE: assumption is made that the collection does NOT end in a /
-#get_violating_collection_root(*root) { *root = "/dirisa.ac.za/violating_projects/" }
-get_violating_collection_root(*root) { *root = "/tempZone/violating_projects" }
+#project_collection_violating_root { "/dirisa.ac.za/violating_projects/" }
+project_collection_violating_root{ "/tempZone/violating_projects" }
 
 ###################################################################
 # Policy Implementation for External Invocation
 
 # Business logic for project creation - this rule depends on the logical quota rule base
 create_project_collection(*proj_name, *owner, *collab_list, *lifetime, *object_quota, *size_quota) {
-     get_lifetime_metadata_attribute(*attr)
-     get_participating_collection_root(*root)
+     project_collection_lifetime_attribute(*attr)
+     *root = project_collection_root()
 
      # handle error case where *name has a trailing /
      *proj_name = trimr(*proj_name, '/')
@@ -129,12 +129,30 @@ collection_violates_lifetime_constraint(*coll_name, *lifetime, *violation_time) 
 
 } # collection_violates_lifetime_constraint
 
+# Query for all project collections given the root collection and the metadata attribute
+# defining the lifetime of the collection.  Print any collections which are older than the
+# given lifetime of the project
+project_collection_list_violations {
+     *attr = project_collection_lifetime_attribute()
+     *root = project_collection_root()
+
+     # iterate over all participating collections and determine of they are in violation
+     foreach(*row in SELECT COLL_NAME, META_COLL_ATTR_VALUE WHERE COLL_NAME like '*root/%' AND META_COLL_ATTR_NAME = '*attr') {
+         *coll_name = *row.COLL_NAME
+         *lifetime  = *row.META_COLL_ATTR_VALUE
+         collection_violates_lifetime_constraint(*coll_name, *lifetime, *violation_time)
+         if(*violation_time > 0) {
+             writeLine("stdout", "[*coll_name] in violation of lifetime constraint by [*violation_time] days")
+         }
+     } # foreach
+} # project_collection_list_violations
+
 ###################################################################
 # Helper Functions
 get_collection_lifetime(*collection, *lifetime) {
     get_error_value(*err_val)
     get_error_value(*lifetime)
-    get_lifetime_metadata_attribute(*attr)
+    *attr = project_collection_lifetime_attribute()
 
     foreach( *row in SELECT META_COLL_ATTR_VALUE WHERE META_COLL_ATTR_NAME = '*attr' AND COLL_NAME = '*collection') {
         *lifetime = *row.META_COLL_ATTR_VALUE
@@ -142,18 +160,18 @@ get_collection_lifetime(*collection, *lifetime) {
 } # get_collection_lifetime
 
 get_project_collection_from_path(*logical_path, *project_collection) {
-    get_participating_collection_root(*root_coll)
+    *root = project_collection_root()
     get_error_value(*project_collection)
     get_error_value(*parent)
     *full_path = *logical_path
 
-    while(*parent != *root_coll && *parent != "/") {
+    while(*parent != *root && *parent != "/") {
         *ec = errormsg(msiSplitPath(*full_path, *parent, *child), *msg);
         if (*ec < 0) {
             failmsg(*ec, *msg);
         }
 
-        if(*parent == *root_coll) {
+        if(*parent == *root) {
             *project_collection = *parent ++ "/" ++ *child
         }
         else {
@@ -170,14 +188,14 @@ get_project_collection_from_path(*logical_path, *project_collection) {
 pep_api_data_obj_put_post(*INSTANCE_NAME, *COMM, *DATAOBJINP, *BBUFF, *PORTAL_OPR_OUT) {
     get_error_value(*err_val)
     *logical_path = *DATAOBJINP.obj_path
-    get_participating_collection_root(*root_coll)
+    *root = project_collection_root()
 
-    if(*logical_path like *root_coll++"/*") {
+    if(*logical_path like *root++"/*") {
         get_project_collection_from_path(*logical_path, *project_collection)
         get_collection_lifetime(*project_collection, *lifetime)
         if(*err_val != *lifetime) {
             # apply metadata to data object
-            get_lifetime_metadata_attribute(*attr)
+            *attr = project_collection_lifetime_attribute()
             msiset_avu("-d", *logical_path, *attr, *project_collection, *lifetime)
         }
     }
@@ -188,7 +206,7 @@ pep_api_data_obj_put_post(*INSTANCE_NAME, *COMM, *DATAOBJINP, *BBUFF, *PORTAL_OP
 prevent_operation_on_violating_project_collection(*CTX) {
     *logical_path = *CTX.logical_path
     *user_auth_flag = *CTX.user_auth_info_auth_flag
-    get_violating_collection_root(*root)
+    *root = project_collection_violating_root()
 
     *match = (*logical_path like *root++"/*")
     *priv = (int(*user_auth_flag) < LOCAL_PRIV_USER_AUTH)
